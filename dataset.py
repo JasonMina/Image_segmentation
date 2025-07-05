@@ -260,28 +260,4 @@ def create_dataloaders(config):
         pin_memory=True if config.get_device().type == 'cuda' else False
     )
     
-    return train_loader, val_loaderdataset = SparseSegmentationDataset(config.data_dir, config, mode='train')
-    
-    # Simple train/val split (conversation mentions this is for test day scenario)
-    train_size = int(0.8 * len(train_dataset))
-    val_size = len(train_dataset) - train_size
-    train_dataset, val_dataset = torch.utils.data.random_split(train_dataset, [train_size, val_size])
-    
-    # Create dataloaders
-    train_loader = DataLoader(
-        train_dataset,
-        batch_size=config.batch_size,
-        shuffle=True,
-        num_workers=config.num_workers,
-        pin_memory=True if config.get_device().type == 'cuda' else False
-    )
-    
-    val_loader = DataLoader(
-        val_dataset,
-        batch_size=config.batch_size,
-        shuffle=False,
-        num_workers=config.num_workers,
-        pin_memory=True if config.get_device().type == 'cuda' else False
-    )
-    
-    return train_loader, val_loader
+    return train_loader, val_loaderdataset 
