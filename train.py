@@ -264,4 +264,4 @@ if __name__ == "__main__":
     config = Config.from_args()
     
     # Train model
-    trained_model = train_model(config)""
+    trained_model = train_model(config)
