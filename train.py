@@ -1,6 +1,5 @@
 """
 Training loop for sparse segmentation
-Uses PyTorch capabilities and TensorBoard as conversation suggests
 """
 
 import torch
@@ -19,10 +18,16 @@ from losses import create_loss_function, calculate_metrics
 
 def train_model(config):
     """
-    WHAT: Main training function that orchestrates the entire training process
-    PURPOSE: Runs complete training loop with logging, checkpointing, and validation
-    WHY: Central function that coordinates all training components
-    HOW: Sets up model/data/loss, runs epoch loop, logs to TensorBoard, saves best models
+    Main training function that orchestrates the entire training process.
+    Runs complete training loop with logging, checkpointing, and validation.
+    Central function that coordinates all training components.
+    Sets up model/data/loss, runs epoch loop, logs to TensorBoard, saves best models.
+    
+    Args:
+        config (Config): Configuration object containing training parameters
+    
+    Returns:
+        torch.nn.Module: The trained model
     """
     
     # Setup
@@ -187,10 +192,21 @@ def train_model(config):
 
 def log_predictions(writer, model, val_loader, device, epoch, config):
     """
-    WHAT: Log prediction visualizations to TensorBoard
-    PURPOSE: Visual monitoring of model predictions during training
-    WHY: Essential for debugging and understanding model behavior
-    HOW: Takes samples from validation set, runs inference, logs image comparisons
+    Log prediction visualizations to TensorBoard.
+    Visual monitoring of model predictions during training.
+    Essential for debugging and understanding model behavior.
+    Takes samples from validation set, runs inference, logs image comparisons.
+    
+    Args:
+        writer (SummaryWriter): TensorBoard writer for logging
+        model (torch.nn.Module): The model to evaluate
+        val_loader (DataLoader): Validation data loader
+        device (torch.device): Device to run inference on
+        epoch (int): Current epoch number
+        config (Config): Configuration object containing parameters
+    
+    Returns:
+        None
     """
     model.eval()
     
@@ -225,10 +241,20 @@ def log_predictions(writer, model, val_loader, device, epoch, config):
 
 def save_checkpoint(model, optimizer, epoch, metric, filepath):
     """
-    WHAT: Save model checkpoint with training state
-    PURPOSE: Preserve model weights and training state for later use
-    WHY: Allows resuming training and loading best models for inference
-    HOW: Saves model state_dict, optimizer state, epoch, and performance metric
+    Save model checkpoint with training state.
+    Preserve model weights and training state for later use.
+    Allows resuming training and loading best models for inference.
+    Saves model state_dict, optimizer state, epoch, and performance metric.
+    
+    Args:
+        model (torch.nn.Module): The model to save
+        optimizer (torch.optim.Optimizer): The optimizer to save
+        epoch (int): Current epoch number
+        metric (float): Performance metric value
+        filepath (str): Path to save checkpoint file
+    
+    Returns:
+        None
     """
     checkpoint = {
         'epoch': epoch,
@@ -240,10 +266,18 @@ def save_checkpoint(model, optimizer, epoch, metric, filepath):
 
 def load_checkpoint(filepath, model, optimizer=None):
     """
-    WHAT: Load model checkpoint and restore training state
-    PURPOSE: Resume training or load trained model for inference
-    WHY: Essential for model deployment and continuing interrupted training
-    HOW: Loads state dicts into model and optimizer, returns epoch and metric info
+    Load model checkpoint and restore training state.
+    Resume training or load trained model for inference.
+    Essential for model deployment and continuing interrupted training.
+    Loads state dicts into model and optimizer, returns epoch and metric info.
+    
+    Args:
+        filepath (str): Path to checkpoint file
+        model (torch.nn.Module): Model to load weights into
+        optimizer (torch.optim.Optimizer, optional): Optimizer to load state into. Defaults to None.
+    
+    Returns:
+        tuple: (epoch, metric) containing epoch number and performance metric
     """
     checkpoint = torch.load(filepath, map_location='cpu', weights_only=False)
     model.load_state_dict(checkpoint['model_state_dict'])
@@ -255,10 +289,16 @@ def load_checkpoint(filepath, model, optimizer=None):
 
 if __name__ == "__main__":
     """
-    WHAT: Main entry point when script is run directly
-    PURPOSE: Parse command line arguments and start training
-    WHY: Allows easy command-line usage for different configurations
-    HOW: Creates config from args and calls train_model function
+    Main entry point when script is run directly.
+    Parse command line arguments and start training.
+    Allows easy command-line usage for different configurations.
+    Creates config from args and calls train_model function.
+    
+    Args:
+        None (uses command line arguments)
+    
+    Returns:
+        None
     """
     # Create config from command line args
     config = Config.from_args()

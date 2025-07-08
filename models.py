@@ -1,18 +1,31 @@
 """
 Model creation with easy switching between architectures
-Based on conversation about UNet, DeepLabV3+, UNet++ options
+Based on UNet, DeepLabV3+, UNet++ options
 """
 
 import torch
 import torch.nn as nn
 import segmentation_models_pytorch as smp
 import numpy as np
+
 def create_model(config):
     """
-    WHAT: Factory function that creates segmentation models based on config
-    PURPOSE: Allows easy switching between different model architectures
-    WHY: Test day requires quick experimentation with different models
-    HOW: Uses segmentation_models_pytorch library with consistent interface
+    Factory function that creates segmentation models based on config.
+    
+    Allows easy switching between different model architectures for test day 
+    experimentation using segmentation_models_pytorch library with consistent interface.
+    
+    Args:
+        config (object): Configuration object with model parameters including:
+            - model_type (str): Type of model ('unet', 'deeplabv3plus', 'unetplusplus')
+            - encoder (str): Encoder backbone name (e.g., 'resnet34', 'efficientnet-b0')
+            - pretrained (bool): Whether to use ImageNet pretrained weights
+            
+    Returns:
+        nn.Module: Configured segmentation model instance
+        
+    Raises:
+        ValueError: If config.model_type is not recognized
     """
     
     model_params = {
@@ -37,31 +50,54 @@ def create_model(config):
 
 class ModelWrapper(nn.Module):
     """
-    WHAT: Wrapper class that adds inference utilities to base segmentation models
-    PURPOSE: Provides convenient methods for prediction and large image handling
-    WHY: Separates training logic from inference logic, adds sliding window capability
-    HOW: Wraps the base model and adds predict methods with different options
+    Wrapper class that adds inference utilities to base segmentation models.
+    
+    Provides convenient methods for prediction and large image handling. Separates 
+    training logic from inference logic and adds sliding window capability by wrapping 
+    the base model and adding predict methods with different options.
     """
     
     def __init__(self, model, config):
+        """
+        Initialize model wrapper.
+        
+        Args:
+            model (nn.Module): Base segmentation model to wrap
+            config (object): Configuration object with inference parameters
+        """
         super().__init__()
         self.model = model
         self.config = config
         
     def forward(self, x):
         """
-        WHAT: Standard forward pass for training
-        PURPOSE: Required for PyTorch nn.Module interface
-        WHY: Ensures compatibility with PyTorch training loops
+        Standard forward pass for training.
+        
+        Args:
+            x (torch.Tensor): Input tensor of shape [B, C, H, W]
+            
+        Returns:
+            torch.Tensor: Raw logits of shape [B, 1, H, W]
         """
         return self.model(x)
     
     def predict(self, x, use_sigmoid=True, threshold=None):
         """
-        WHAT: Inference method with optional sigmoid activation and thresholding
-        PURPOSE: Clean interface for getting predictions during evaluation
-        WHY: Separates inference logic from training, allows flexible output formats
-        HOW: Applies sigmoid and threshold based on parameters
+        Inference method with optional sigmoid activation and thresholding.
+        
+        Clean interface for getting predictions during evaluation. Separates inference 
+        logic from training and allows flexible output formats by applying sigmoid and 
+        threshold based on parameters.
+        
+        Args:
+            x (torch.Tensor): Input tensor of shape [B, C, H, W]
+            use_sigmoid (bool): Whether to apply sigmoid activation
+            threshold (float, optional): Threshold for binary prediction. If None, 
+                                       returns probabilities
+                                       
+        Returns:
+            torch.Tensor: Predictions of shape [B, 1, H, W]. Either logits, 
+                         probabilities, or binary masks depending on parameters
         """
         with torch.no_grad():
             logits = self.model(x)
@@ -74,10 +110,20 @@ class ModelWrapper(nn.Module):
     
     def predict_full_image(self, image, stride_ratio=0.5):
         """
-        WHAT: Sliding window inference for large images (like 700x2000 from conversation)
-        PURPOSE: Handle images larger than model's input size by processing patches
-        WHY: GPU memory limitations prevent processing very large images directly
-        HOW: Slides overlapping windows across image, averages overlapping predictions
+        Sliding window inference for large images
+        
+        Handle images larger than model's input size by processing patches to overcome 
+        GPU memory limitations. Slides overlapping windows across image and averages 
+        overlapping predictions.
+        
+        Args:
+            image (torch.Tensor or np.ndarray): Input image. If numpy array, should be 
+                                               of shape [H, W, C]. If tensor, should be 
+                                               of shape [1, C, H, W]
+            stride_ratio (float): Ratio of stride to patch_size for overlap control
+            
+        Returns:
+            torch.Tensor: Full image prediction of shape [1, 1, H, W] on CPU
         """
         self.eval()
         device = next(self.parameters()).device
@@ -139,10 +185,17 @@ class ModelWrapper(nn.Module):
     
     def test_time_augmentation(self, x):
         """
-        WHAT: Test-time augmentation that applies multiple transforms and averages results
-        PURPOSE: Improve prediction quality by ensemble of augmented inputs
-        WHY: Often gives 1-2% performance boost with minimal computational cost
-        HOW: Apply different flips, run inference, reverse transforms, average predictions
+        Test-time augmentation that applies multiple transforms and averages results.
+        
+        Improve prediction quality by ensemble of augmented inputs. Often gives 1-2% 
+        performance boost with minimal computational cost by applying different flips, 
+        running inference, reversing transforms, and averaging predictions.
+        
+        Args:
+            x (torch.Tensor): Input tensor of shape [B, C, H, W]
+            
+        Returns:
+            torch.Tensor: Averaged predictions of shape [B, 1, H, W] with sigmoid applied
         """
         predictions = []
         

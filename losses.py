@@ -9,17 +9,34 @@ import torch.nn.functional as F
 
 class DiceLoss(nn.Module):
     """
-    WHAT: Dice loss implementation for segmentation tasks
-    PURPOSE: Measures overlap between predicted and true masks
-    WHY: Particularly good for small objects and class imbalance (mentioned in conversation)
-    HOW: Calculates 2*intersection / (prediction + target), returns 1-dice as loss
+    Dice loss implementation for segmentation tasks.
+    
+    Measures overlap between predicted and true masks. Particularly good for small 
+    objects and class imbalance by calculating 2*intersection / (prediction + target) 
+    and returning 1-dice as loss.
     """
     
     def __init__(self, smooth=1.0):
+        """
+        Initialize Dice loss.
+        
+        Args:
+            smooth (float): Smoothing factor to avoid division by zero
+        """
         super().__init__()
         self.smooth = smooth
     
     def forward(self, pred, target):
+        """
+        Calculate Dice loss between predictions and targets.
+        
+        Args:
+            pred (torch.Tensor): Raw predictions (logits) of shape [B, C, H, W]
+            target (torch.Tensor): Ground truth masks of shape [B, H, W] or [B, C, H, W]
+            
+        Returns:
+            torch.Tensor: Dice loss value (scalar)
+        """
         pred = torch.sigmoid(pred)
         
         # Flatten tensors
@@ -33,19 +50,38 @@ class DiceLoss(nn.Module):
 
 class FocalLoss(nn.Module):
     """
-    WHAT: Focal Loss implementation for addressing extreme class imbalance
-    PURPOSE: Down-weights easy examples, focuses training on hard cases
-    WHY: Essential for sparse segmentation where background dominates (conversation emphasis)
-    HOW: Modifies BCE with (1-pt)^gamma weighting term and alpha class balancing
+    Focal Loss implementation for addressing extreme class imbalance.
+    
+    Down-weights easy examples and focuses training on hard cases. Essential for sparse 
+    segmentation where background dominates by modifying BCE with (1-pt)^gamma weighting 
+    term and alpha class balancing.
     """
     
     def __init__(self, alpha=0.25, gamma=2.0, reduction='mean'):
+        """
+        Initialize Focal Loss.
+        
+        Args:
+            alpha (float): Weighting factor for rare class (typically 0.25)
+            gamma (float): Focusing parameter (typically 2.0)
+            reduction (str): Specifies the reduction to apply ('mean', 'sum', 'none')
+        """
         super().__init__()
         self.alpha = alpha
         self.gamma = gamma
         self.reduction = reduction
     
     def forward(self, pred, target):
+        """
+        Calculate Focal loss between predictions and targets.
+        
+        Args:
+            pred (torch.Tensor): Raw predictions (logits) of shape [B, C, H, W]
+            target (torch.Tensor): Ground truth masks of shape [B, H, W] or [B, C, H, W]
+            
+        Returns:
+            torch.Tensor: Focal loss value (scalar or tensor based on reduction)
+        """
         # Ensure target shape matches pred
         if target.dim() == 3:
             target = target.unsqueeze(1)  # Shape: [B, 1, H, W]
@@ -74,13 +110,23 @@ class FocalLoss(nn.Module):
 
 class CombinedLoss(nn.Module):
     """
-    WHAT: Combination of Focal Loss and Dice Loss
-    PURPOSE: Gets benefits of both losses - focal handles class imbalance, dice handles small objects
-    WHY: Conversation emphasized this combination for sparse segmentation
-    HOW: Weighted sum of focal and dice losses with configurable weights
+    Combination of Focal Loss and Dice Loss.
+    
+    Gets benefits of both losses - focal handles class imbalance, dice handles small 
+    objects. Emphasized in conversation for sparse segmentation as weighted sum of 
+    focal and dice losses with configurable weights.
     """
     
     def __init__(self, focal_weight=1.0, dice_weight=1.0, focal_alpha=0.25, focal_gamma=2.0):
+        """
+        Initialize combined loss function.
+        
+        Args:
+            focal_weight (float): Weight for focal loss component
+            dice_weight (float): Weight for dice loss component
+            focal_alpha (float): Alpha parameter for focal loss
+            focal_gamma (float): Gamma parameter for focal loss
+        """
         super().__init__()
         self.focal_weight = focal_weight
         self.dice_weight = dice_weight
@@ -88,6 +134,16 @@ class CombinedLoss(nn.Module):
         self.dice_loss = DiceLoss()
     
     def forward(self, pred, target):
+        """
+        Calculate combined focal and dice loss.
+        
+        Args:
+            pred (torch.Tensor): Raw predictions (logits) of shape [B, C, H, W]
+            target (torch.Tensor): Ground truth masks of shape [B, H, W] or [B, C, H, W]
+            
+        Returns:
+            tuple: (total_loss, focal_loss, dice_loss) where each is a scalar tensor
+        """
         focal = self.focal_loss(pred, target)
         dice = self.dice_loss(pred, target)
         
@@ -97,17 +153,33 @@ class CombinedLoss(nn.Module):
 
 class BoundaryLoss(nn.Module):
     """
-    WHAT: Boundary-aware loss that emphasizes pixels near object edges
-    PURPOSE: Improves segmentation quality at object boundaries
-    WHY: Mentioned in conversation for pixel-level precision tasks
-    HOW: Uses Sobel filters to detect edges, weights loss higher near boundaries
+    Boundary-aware loss that emphasizes pixels near object edges.
+    
+    Improves segmentation quality at object boundaries for pixel-level precision tasks 
+    by using Sobel filters to detect edges and weighting loss higher near boundaries.
     """
     
     def __init__(self, theta=3):
+        """
+        Initialize boundary loss.
+        
+        Args:
+            theta (float): Weighting factor for boundary pixels (higher = more emphasis)
+        """
         super().__init__()
         self.theta = theta
     
     def forward(self, pred, target):
+        """
+        Calculate boundary-weighted loss.
+        
+        Args:
+            pred (torch.Tensor): Raw predictions (logits) of shape [B, C, H, W]
+            target (torch.Tensor): Ground truth masks of shape [B, H, W] or [B, C, H, W]
+            
+        Returns:
+            torch.Tensor: Boundary-weighted loss value (scalar)
+        """
         # Calculate boundary map using Sobel filters
         sobel_x = torch.tensor([[-1, 0, 1], [-2, 0, 2], [-1, 0, 1]], 
                               dtype=torch.float32, device=target.device)
@@ -135,10 +207,24 @@ class BoundaryLoss(nn.Module):
 
 def create_loss_function(config):
     """
-    WHAT: Factory function that creates loss function based on configuration
-    PURPOSE: Allows easy switching between different loss functions
-    WHY: Test day requires quick experimentation with different loss strategies
-    HOW: Returns appropriate loss class instance based on config.loss_type
+    Factory function that creates loss function based on configuration.
+    
+    Allows easy switching between different loss functions for test day experimentation 
+    with different loss strategies.
+    
+    Args:
+        config (object): Configuration object with loss parameters including:
+            - loss_type (str): Type of loss ('focal_dice', 'dice', 'focal', 'bce', 'boundary')
+            - focal_weight (float): Weight for focal loss in combined loss
+            - dice_weight (float): Weight for dice loss in combined loss
+            - focal_alpha (float): Alpha parameter for focal loss
+            - focal_gamma (float): Gamma parameter for focal loss
+            
+    Returns:
+        nn.Module: Configured loss function instance
+        
+    Raises:
+        ValueError: If config.loss_type is not recognized
     """
     
     if config.loss_type == 'focal_dice':
@@ -161,10 +247,23 @@ def create_loss_function(config):
 
 def calculate_metrics(pred, target, threshold=0.5):
     """
-    WHAT: Calculate standard segmentation evaluation metrics
-    PURPOSE: Provides quantitative assessment of model performance
-    WHY: Need to track IoU, Dice, precision, recall for model comparison
-    HOW: Converts predictions to binary, calculates intersection-based metrics
+    Calculate standard segmentation evaluation metrics.
+    
+    Provides quantitative assessment of model performance by converting predictions 
+    to binary and calculating intersection-based metrics.
+    
+    Args:
+        pred (torch.Tensor): Raw predictions (logits) of shape [B, C, H, W]
+        target (torch.Tensor): Ground truth masks of shape [B, H, W] or [B, C, H, W]
+        threshold (float): Threshold for converting predictions to binary (default: 0.5)
+        
+    Returns:
+        dict: Dictionary containing metric values with keys:
+            - iou (float): Intersection over Union
+            - dice (float): Dice coefficient
+            - accuracy (float): Pixel-wise accuracy
+            - precision (float): Positive predictive value
+            - recall (float): Sensitivity/True positive rate
     """
     
     # Convert predictions to binary

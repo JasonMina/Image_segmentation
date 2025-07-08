@@ -1,6 +1,5 @@
 """
 Configuration for sparse segmentation pipeline
-Easy switching between different setups as mentioned in conversation
 """
 
 import argparse
@@ -19,7 +18,7 @@ class Config:
     data_dir: str = "Dataset-trial-difficult"
     easy_data_dir: str = "Dataset-trial-easy"
     
-    # Model architecture - easy switching as conversation suggests
+    # Model architecture - easy switching 
     model_type: str = "unet"  # unet, deeplabv3plus, unetplusplus
     encoder: str = "resnet34"  # resnet34, resnet50, efficientnet-b4
     pretrained: bool = True
@@ -38,7 +37,7 @@ class Config:
     learning_rate: float = 1e-4  # Lower LR for stability with sparse labels
     weight_decay: float = 1e-5
     
-    # Loss function - conversation emphasized focal+dice for sparse/imbalanced
+    # Loss function
     loss_type: str = "focal_dice"  # focal_dice, dice, focal, bce
     focal_alpha: float = 0.25
     focal_gamma: float = 2.0
@@ -53,7 +52,7 @@ class Config:
     device: str = "auto"  # auto, cuda, cpu
     num_workers: int = 4
     
-    # Logging - use tensorboard as conversation suggests
+    # Logging - use tensorboard 
     log_dir: str = "runs"
     save_dir: str = "checkpoints"
     log_images_every: int = 5  # Log prediction images every N epochs
@@ -72,7 +71,7 @@ class Config:
         """
         parser = argparse.ArgumentParser()
         
-        # Key switches mentioned in conversation
+
         parser.add_argument('--model', choices=['unet', 'deeplabv3plus', 'unetplusplus'], 
                           default='unet', help='Model architecture')
         parser.add_argument('--encoder', choices=['resnet34', 'resnet50', 'efficientnet-b4'],

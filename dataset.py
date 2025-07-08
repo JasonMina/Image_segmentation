@@ -1,6 +1,5 @@
 """
 Patch-based dataset for sparse segmentation labels
-Based on conversation about 1-100 labeled pixels out of 700x2000 images
 """
 
 import torch
@@ -13,20 +12,25 @@ from pathlib import Path
 import albumentations as A
 from albumentations.pytorch import ToTensorV2
 import random
+
 class SparseSegmentationDataset(Dataset):
     """
-    WHAT: Dataset class that handles sparse segmentation labels with patch sampling
-    PURPOSE: Convert sparse labels (1-100 pixels) into balanced training patches
-    WHY: Direct training on full images with sparse labels leads to class imbalance
-         and poor learning - patches focus model attention on relevant areas
-    HOW: Extracts patches around labeled pixels + adds background patches for balance
+    Dataset class that handles sparse segmentation labels with patch sampling.
+    
+    Converts sparse labels (1-100 pixels) into balanced training patches. Direct training 
+    on full images with sparse labels leads to class imbalance and poor learning - patches 
+    focus model attention on relevant areas by extracting patches around labeled pixels 
+    and adding background patches for balance.
     """
     
     def __init__(self, data_dir, config, mode='train'):
         """
-        WHAT: Initialize dataset with image/mask pairs and generate patch coordinates
-        PURPOSE: Set up all data needed for patch-based training
-        WHY: Pre-computing patch locations makes training faster and more balanced
+        Initialize dataset with image/mask pairs and generate patch coordinates.
+        
+        Args:
+            data_dir (str): Path to directory containing image and mask files
+            config (object): Configuration object with dataset parameters
+            mode (str): Dataset mode, either 'train' or 'val'
         """
         self.data_dir = Path(data_dir)
         self.config = config
@@ -62,26 +66,18 @@ class SparseSegmentationDataset(Dataset):
     
     def _generate_patches(self):
         """
-        WHAT: Pre-compute all patch coordinates for positive and background regions
-        PURPOSE: Creates balanced dataset of patches around sparse labels
-        WHY: Avoids class imbalance by ensuring equal positive/negative patch sampling
-        HOW: Find labeled pixels, create patches around them, then sample background patches
-        """
-        """
-        Generate balanced foreground/background patch coordinates for segmentation training.
-
-        Args:
-            image_paths (list): List of image file paths.
-            mask_paths (list): List of corresponding mask paths.
-            config (Namespace or dict): Configuration with keys:
-                - patch_size
-                - num_background_patches
-                - max_total_patches
-                - min_mask_area
-                - label_sampling_stride
-
+        Pre-compute all patch coordinates for positive and background regions.
+        
+        Creates balanced dataset of patches around sparse labels to avoid class imbalance 
+        by ensuring equal positive/negative patch sampling. Finds labeled pixels, creates 
+        patches around them, then samples background patches.
+        
         Returns:
-            List of dicts: Each containing {image_path, mask_path, center, type}
+            list: List of dicts containing patch information with keys:
+                - image_path (str): Path to source image
+                - mask_path (str): Path to source mask
+                - center (tuple): (y, x) coordinates of patch center
+                - type (str): 'positive' or 'background'
         """
         patches = []
 
@@ -146,10 +142,14 @@ class SparseSegmentationDataset(Dataset):
     
     def _get_transforms(self):
         """
-        WHAT: Define data augmentation transforms for training vs validation
-        PURPOSE: Increase data diversity and prevent overfitting
-        WHY: Sparse labels need heavy augmentation to generalize well
-        HOW: Applies geometric and color transforms consistently to image and mask
+        Define data augmentation transforms for training vs validation.
+        
+        Increases data diversity and prevents overfitting. Sparse labels need heavy 
+        augmentation to generalize well by applying geometric and color transforms 
+        consistently to image and mask.
+        
+        Returns:
+            albumentations.Compose: Composed augmentation pipeline
         """
         if self.mode == 'train':
             return A.Compose([
@@ -170,9 +170,10 @@ class SparseSegmentationDataset(Dataset):
     
     def __len__(self):
         """
-        WHAT: Return dataset size for DataLoader
-        PURPOSE: Tell PyTorch how many samples exist
-        WHY: Required by Dataset interface
+        Return dataset size for DataLoader.
+        
+        Returns:
+            int: Number of samples in the dataset
         """
         if self.config.use_patches:
             return len(self.patches)
@@ -181,10 +182,16 @@ class SparseSegmentationDataset(Dataset):
     
     def __getitem__(self, idx):
         """
-        WHAT: Get single training sample (image, mask) by index
-        PURPOSE: Core Dataset method that DataLoader calls to get batches
-        WHY: Required by PyTorch Dataset interface
-        HOW: Routes to patch-based or full-image loading based on config
+        Get single training sample (image, mask) by index.
+        
+        Core Dataset method that DataLoader calls to get batches. Routes to patch-based 
+        or full-image loading based on config.
+        
+        Args:
+            idx (int): Index of sample to retrieve
+            
+        Returns:
+            tuple: (image, mask) where image is tensor and mask is float tensor
         """
         if self.config.use_patches:
             return self._get_patch(idx)
@@ -193,10 +200,17 @@ class SparseSegmentationDataset(Dataset):
     
     def _get_patch(self, idx):
         """
-        WHAT: Extract and return a single patch sample with augmentations
-        PURPOSE: Get focused training sample around sparse labels
-        WHY: Patches provide balanced signal-to-noise ratio for sparse segmentation
-        HOW: Load full image/mask, extract patch around center point, apply transforms
+        Extract and return a single patch sample with augmentations.
+        
+        Gets focused training sample around sparse labels. Patches provide balanced 
+        signal-to-noise ratio for sparse segmentation by loading full image/mask, 
+        extracting patch around center point, and applying transforms.
+        
+        Args:
+            idx (int): Index of patch to retrieve
+            
+        Returns:
+            tuple: (patch_image, patch_mask) as tensors
         """
         patch_info = self.patches[idx]
         
@@ -234,10 +248,17 @@ class SparseSegmentationDataset(Dataset):
     
     def _get_full_image(self, idx):
         """
-        WHAT: Load and return full image resized to input size
-        PURPOSE: Alternative to patch-based training for comparison
-        WHY: Sometimes useful for testing different training strategies
-        HOW: Load full image/mask, resize to config size, apply transforms
+        Load and return full image resized to input size.
+        
+        Alternative to patch-based training for comparison. Sometimes useful for testing 
+        different training strategies by loading full image/mask, resizing to config size, 
+        and applying transforms.
+        
+        Args:
+            idx (int): Index of image to retrieve
+            
+        Returns:
+            tuple: (image, mask) as tensors
         """
         image = cv2.imread(self.image_paths[idx])
         image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
@@ -257,16 +278,27 @@ class SparseSegmentationDataset(Dataset):
 
 def create_dataloaders(config):
     """
-    WHAT: Create PyTorch DataLoaders for training and validation
-    PURPOSE: Set up efficient batch loading with proper train/val split
-    WHY: DataLoaders handle batching, shuffling, and parallel loading
-    HOW: Create dataset, split it, wrap in DataLoaders with proper settings
+    Create PyTorch DataLoaders for training and validation.
+    
+    Sets up efficient batch loading with proper train/val split. DataLoaders handle 
+    batching, shuffling, and parallel loading by creating dataset, splitting it, and 
+    wrapping in DataLoaders with proper settings.
+    
+    Args:
+        config (object): Configuration object with training parameters including:
+            - data_dir (str): Path to data directory
+            - batch_size (int): Batch size for training
+            - num_workers (int): Number of worker processes for data loading
+            - get_device() method: Returns device (cuda/cpu)
+            
+    Returns:
+        tuple: (train_loader, val_loader) PyTorch DataLoader objects
     """
     
     # Create datasets
     train_dataset = SparseSegmentationDataset(config.data_dir, config, mode='train')
     
-    # Simple train/val split (conversation mentions this is for test day scenario)
+    # Simple train/val split 
     train_size = int(0.8 * len(train_dataset))
     val_size = len(train_dataset) - train_size
     train_dataset, val_dataset = torch.utils.data.random_split(train_dataset, [train_size, val_size])

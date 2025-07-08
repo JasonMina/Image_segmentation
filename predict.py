@@ -17,10 +17,21 @@ from train import load_checkpoint
 
 def predict_image(image_path, model_path, config, output_dir=None, use_tta=False):
     """
-    WHAT: Predict segmentation mask for a single image using sliding window
-    PURPOSE: Main inference function for generating masks on large images
-    WHY: Handles images larger than model input size (like 700x2000 from conversation)
-    HOW: Loads model, applies sliding window inference, saves multiple output formats
+    Predict segmentation mask for a single image using sliding window.
+    Main inference function for generating masks on large images.
+    Handles images larger than model input size
+    Loads model, applies sliding window inference, saves multiple output formats.
+    
+    Args:
+        image_path (str): Path to input image file
+        model_path (str): Path to trained model checkpoint
+        config (Config): Configuration object containing model parameters
+        output_dir (str, optional): Directory to save output files. Defaults to None.
+        use_tta (bool, optional): Whether to use test-time augmentation. Defaults to False.
+    
+    Returns:
+        tuple: (mask, prediction_np) where mask is binary segmentation mask (numpy array)
+               and prediction_np is probability map (numpy array)
     """
     
     # Setup
@@ -97,10 +108,18 @@ def predict_image(image_path, model_path, config, output_dir=None, use_tta=False
 
 def create_overlay(image, mask, alpha=0.5):
     """
-    WHAT: Create visual overlay of predicted mask on original image
-    PURPOSE: Generate intuitive visualization for human evaluation
-    WHY: Essential for visual inspection of model performance
-    HOW: Blends colored mask with original image using alpha transparency
+    Create visual overlay of predicted mask on original image.
+    Generate intuitive visualization for human evaluation.
+    Essential for visual inspection of model performance.
+    Blends colored mask with original image using alpha transparency.
+    
+    Args:
+        image (numpy.ndarray): Original RGB image
+        mask (numpy.ndarray): Binary segmentation mask
+        alpha (float, optional): Transparency level for overlay. Defaults to 0.5.
+    
+    Returns:
+        numpy.ndarray: RGB image with mask overlay
     """
     overlay = image.copy()
     
@@ -115,10 +134,20 @@ def create_overlay(image, mask, alpha=0.5):
 
 def predict_batch(image_dir, model_path, config, output_dir, extensions=('.jpg', '.png', '.jpeg')):
     """
-    WHAT: Run inference on all images in a directory
-    PURPOSE: Batch processing for multiple images efficiently
-    WHY: Test day scenario requires processing multiple unseen images
-    HOW: Iterates through directory, processes each image, tracks statistics
+    Run inference on all images in a directory.
+    Batch processing for multiple images efficiently.
+    Test day scenario requires processing multiple unseen images.
+    Iterates through directory, processes each image, tracks statistics.
+    
+    Args:
+        image_dir (str): Directory containing input images
+        model_path (str): Path to trained model checkpoint
+        config (Config): Configuration object containing model parameters
+        output_dir (str): Directory to save output files
+        extensions (tuple, optional): Valid image file extensions. Defaults to ('.jpg', '.png', '.jpeg').
+    
+    Returns:
+        list: List of dictionaries containing processing results for each image
     """
     
     image_dir = Path(image_dir)
@@ -197,10 +226,16 @@ def predict_batch(image_dir, model_path, config, output_dir, extensions=('.jpg',
 
 def main():
     """
-    WHAT: Command-line interface for running predictions
-    PURPOSE: Provides easy-to-use interface for single or batch inference
-    WHY: Essential for test day - quick prediction on unseen data
-    HOW: Parses command line arguments and calls appropriate prediction function
+    Command-line interface for running predictions.
+    Provides easy-to-use interface for single or batch inference.
+    Essential for test day - quick prediction on unseen data.
+    Parses command line arguments and calls appropriate prediction function.
+    
+    Args:
+        None (uses command line arguments)
+    
+    Returns:
+        None
     """
     parser = argparse.ArgumentParser(description="Predict segmentation masks")
     parser.add_argument('--image', type=str, help='Single image path')
