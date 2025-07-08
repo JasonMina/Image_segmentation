@@ -6,7 +6,7 @@ Based on conversation about UNet, DeepLabV3+, UNet++ options
 import torch
 import torch.nn as nn
 import segmentation_models_pytorch as smp
-
+import numpy as np
 def create_model(config):
     """
     WHAT: Factory function that creates segmentation models based on config

@@ -6,13 +6,13 @@ Easy switching between different setups as mentioned in conversation
 import argparse
 from dataclasses import dataclass
 from typing import Tuple, Optional
-
+import torch
 @dataclass
 class Config:
     """
-    WHAT: Central configuration class that stores all hyperparameters and settings
-    PURPOSE: Single source of truth for all training/inference parameters
-    WHY: Allows easy switching between different model architectures, loss functions,
+    Central configuration class that stores all hyperparameters and settings
+    Single source of truth for all training/inference parameters
+    Allows easy switching between different model architectures, loss functions,
          and training strategies without changing code
     """
     # Data paths
@@ -28,11 +28,14 @@ class Config:
     use_patches: bool = True
     patch_size: int = 256
     num_background_patches: int = 3  # per positive patch
+    max_total_patches: int=30000 
+    min_mask_area: int=5
+    label_sampling_stride: int=1
     
     # Training params - optimized for sparse segmentation
     batch_size: int = 8
     epochs: int = 50
-    learning_rate: float = 5e-5  # Lower LR for stability with sparse labels
+    learning_rate: float = 1e-4  # Lower LR for stability with sparse labels
     weight_decay: float = 1e-5
     
     # Loss function - conversation emphasized focal+dice for sparse/imbalanced
@@ -62,10 +65,10 @@ class Config:
     @classmethod
     def from_args(cls):
         """
-        WHAT: Creates Config object from command line arguments
-        PURPOSE: Allows easy switching of settings from terminal without code changes
-        WHY: Essential for test day - quickly try different models/losses/settings
-        HOW: Parses command line args and overrides default config values
+        Creates Config object from command line arguments
+        Allows easy switching of settings from terminal without code changes
+        Essential for test day - quickly try different models/losses/settings
+        Parses command line args and overrides default config values
         """
         parser = argparse.ArgumentParser()
         
@@ -77,9 +80,9 @@ class Config:
         parser.add_argument('--loss', choices=['focal_dice', 'dice', 'focal', 'bce'],
                           default='focal_dice', help='Loss function')
         parser.add_argument('--patch-size', type=int, default=256, help='Patch size for training')
-        parser.add_argument('--lr', type=float, default=5e-5, help='Learning rate')
+        parser.add_argument('--lr', type=float, default=1e-4, help='Learning rate')
         parser.add_argument('--epochs', type=int, default=50, help='Number of epochs')
-        parser.add_argument('--batch-size', type=int, default=8, help='Batch size')
+        parser.add_argument('--batch-size', type=int, default=32, help='Batch size')
         parser.add_argument('--data-dir', default='Dataset-trial-difficult', help='Data directory')
         parser.add_argument('--no-patches', action='store_true', help='Train on full images instead of patches')
         

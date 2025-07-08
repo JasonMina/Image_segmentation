@@ -53,7 +53,7 @@ def predict_image(image_path, model_path, config, output_dir=None, use_tta=False
     image_norm = (image_norm - mean) / std
     
     # Convert to tensor
-    image_tensor = torch.from_numpy(image_norm).permute(2, 0, 1).unsqueeze(0)
+    image_tensor = torch.from_numpy(image_norm.astype(np.float32)).permute(2, 0, 1).unsqueeze(0)
     
     print("Running inference...")
     start_time = time.time()
@@ -63,7 +63,7 @@ def predict_image(image_path, model_path, config, output_dir=None, use_tta=False
         prediction = model.test_time_augmentation(image_tensor.to(device))
     else:
         # Regular sliding window inference
-        prediction = model.predict_full_image(image_tensor)
+        prediction = model.predict_full_image(image_tensor, stride_ratio=0.4)
     
     inference_time = time.time() - start_time
     print(f"Inference time: {inference_time:.2f} seconds")
@@ -145,25 +145,27 @@ def predict_batch(image_dir, model_path, config, output_dir, extensions=('.jpg',
         print(f"\nProcessing {i+1}/{len(image_paths)}: {image_path.name}")
         
         try:
-            start_time = time.time()
-            mask, prob = predict_image(str(image_path), model_path, config, str(output_dir))
-            process_time = time.time() - start_time
-            total_time += process_time
+            if "image" in str(image_path):
+                start_time = time.time()
             
-            # Calculate some basic stats
-            positive_pixels = (mask > 0).sum()
-            total_pixels = mask.size
-            positive_ratio = positive_pixels / total_pixels
+                mask, prob = predict_image(str(image_path), model_path, config, str(output_dir))
+                process_time = time.time() - start_time
+                total_time += process_time
             
-            results.append({
-                'image': image_path.name,
-                'positive_pixels': positive_pixels,
-                'positive_ratio': positive_ratio,
-                'process_time': process_time
-            })
-            
-            print(f"  Positive pixels: {positive_pixels} ({positive_ratio*100:.2f}%)")
-            print(f"  Processing time: {process_time:.2f}s")
+                # Calculate some basic stats
+                positive_pixels = (mask > 0).sum()
+                total_pixels = mask.size
+                positive_ratio = positive_pixels / total_pixels
+                
+                results.append({
+                    'image': image_path.name,
+                    'positive_pixels': positive_pixels,
+                    'positive_ratio': positive_ratio,
+                    'process_time': process_time
+                })
+                
+                print(f"  Positive pixels: {positive_pixels} ({positive_ratio*100:.2f}%)")
+                print(f"  Processing time: {process_time:.2f}s")
             
         except Exception as e:
             print(f"  Error processing {image_path.name}: {e}")
