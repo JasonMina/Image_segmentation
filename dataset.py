@@ -12,7 +12,7 @@ import glob
 from pathlib import Path
 import albumentations as A
 from albumentations.pytorch import ToTensorV2
-
+import random
 class SparseSegmentationDataset(Dataset):
     """
     WHAT: Dataset class that handles sparse segmentation labels with patch sampling
@@ -33,8 +33,8 @@ class SparseSegmentationDataset(Dataset):
         self.mode = mode
         
         # Find image and mask pairs
-        self.image_paths = sorted(glob.glob(str(self.data_dir / "*.jpg")) + 
-                                 glob.glob(str(self.data_dir / "*.png")))
+        self.image_paths = sorted(glob.glob(str(self.data_dir / "*image.jpg")) + 
+                                 glob.glob(str(self.data_dir / "*image.png")))
         self.mask_paths = []
         
         for img_path in self.image_paths:
@@ -67,53 +67,81 @@ class SparseSegmentationDataset(Dataset):
         WHY: Avoids class imbalance by ensuring equal positive/negative patch sampling
         HOW: Find labeled pixels, create patches around them, then sample background patches
         """
+        """
+        Generate balanced foreground/background patch coordinates for segmentation training.
+
+        Args:
+            image_paths (list): List of image file paths.
+            mask_paths (list): List of corresponding mask paths.
+            config (Namespace or dict): Configuration with keys:
+                - patch_size
+                - num_background_patches
+                - max_total_patches
+                - min_mask_area
+                - label_sampling_stride
+
+        Returns:
+            List of dicts: Each containing {image_path, mask_path, center, type}
+        """
         patches = []
-        
+
         for img_path, mask_path in zip(self.image_paths, self.mask_paths):
             mask = cv2.imread(mask_path, cv2.IMREAD_GRAYSCALE)
             if mask is None:
                 continue
-                
-            # Find labeled pixels (conversation mentions very sparse labels)
-            labeled_coords = np.argwhere(mask > 0)
-            
-            if len(labeled_coords) == 0:
-                continue
-            
-            # Patches around labeled pixels
-            for y, x in labeled_coords:
-                patches.append({
-                    'image_path': img_path,
-                    'mask_path': mask_path,
-                    'center': (y, x),
-                    'type': 'positive'
-                })
-            
-            # Background patches (conversation suggests 3x more background)
+
             h, w = mask.shape
-            num_bg = len(labeled_coords) * self.config.num_background_patches
-            
-            for _ in range(num_bg):
+            ps = self.config.patch_size // 2
+
+            # Connected components instead of every labeled pixel
+            mask_bin = (mask > 0).astype(np.uint8)
+            num_labels, labeled_mask, stats, centroids = cv2.connectedComponentsWithStats(mask_bin)
+            positive_patches = []
+            for i in range(1, num_labels):  # skip background (label 0)
+                x, y = centroids[i]
+                y, x = int(y), int(x)
+                area = stats[i, cv2.CC_STAT_AREA]
+                
+                if area >= self.config.min_mask_area:
+                    if ps <= y < h - ps and ps <= x < w - ps:
+                        positive_patches.append({
+                            'image_path': img_path,
+                            'mask_path': mask_path,
+                            'center': (y, x),
+                            'type': 'positive'
+                        })
+
+                # Sample background patches
+                background_patches = []
+                bg_needed = len(positive_patches) * self.config.num_background_patches
+
                 attempts = 0
-                while attempts < 50:  # Avoid infinite loop
-                    y = np.random.randint(self.config.patch_size//2, h - self.config.patch_size//2)
-                    x = np.random.randint(self.config.patch_size//2, w - self.config.patch_size//2)
-                    
-                    # Check if this area has no labels
-                    patch_mask = mask[y-self.config.patch_size//2:y+self.config.patch_size//2,
-                                    x-self.config.patch_size//2:x+self.config.patch_size//2]
-                    
-                    if patch_mask.sum() == 0:  # Pure background
-                        patches.append({
+                while len(background_patches) < bg_needed and attempts < 10000:
+                    y = np.random.randint(ps, h - ps)
+                    x = np.random.randint(ps, w - ps)
+                    patch_mask = mask[y - ps:y + ps, x - ps:x + ps]
+
+                    if patch_mask.sum() == 0:
+                        background_patches.append({
                             'image_path': img_path,
                             'mask_path': mask_path,
                             'center': (y, x),
                             'type': 'background'
                         })
-                        break
                     attempts += 1
+
+                patches.extend(positive_patches + background_patches)
+
+        # Shuffle and optionally cap
+        random.shuffle(patches)
+
+        if len(patches) > self.config.max_total_patches:
+            patches = random.sample(patches, self.config.max_total_patches)
+
+        print(f"✅ Generated {len(patches)} patches "
+            f"({sum(p['type']=='positive' for p in patches)} positive, "
+            f"{sum(p['type']=='background' for p in patches)} background)")
         
-        print(f"Generated {len(patches)} patches")
         return patches
     
     def _get_transforms(self):
@@ -237,30 +265,6 @@ def create_dataloaders(config):
     
     # Create datasets
     train_dataset = SparseSegmentationDataset(config.data_dir, config, mode='train')
-    
-    # Simple train/val split (conversation mentions this is for test day scenario)
-    train_size = int(0.8 * len(train_dataset))
-    val_size = len(train_dataset) - train_size
-    train_dataset, val_dataset = torch.utils.data.random_split(train_dataset, [train_size, val_size])
-    
-    # Create dataloaders
-    train_loader = DataLoader(
-        train_dataset,
-        batch_size=config.batch_size,
-        shuffle=True,
-        num_workers=config.num_workers,
-        pin_memory=True if config.get_device().type == 'cuda' else False
-    )
-    
-    val_loader = DataLoader(
-        val_dataset,
-        batch_size=config.batch_size,
-        shuffle=False,
-        num_workers=config.num_workers,
-        pin_memory=True if config.get_device().type == 'cuda' else False
-    )
-    
-    return train_loader, val_loaderdataset = SparseSegmentationDataset(config.data_dir, config, mode='train')
     
     # Simple train/val split (conversation mentions this is for test day scenario)
     train_size = int(0.8 * len(train_dataset))

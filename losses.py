@@ -46,24 +46,31 @@ class FocalLoss(nn.Module):
         self.reduction = reduction
     
     def forward(self, pred, target):
-        # Convert to probabilities
+        # Ensure target shape matches pred
+        if target.dim() == 3:
+            target = target.unsqueeze(1)  # Shape: [B, 1, H, W]
+
         pred_sigmoid = torch.sigmoid(pred)
-        
+
         # Calculate focal loss
         pt = pred_sigmoid * target + (1 - pred_sigmoid) * (1 - target)
         alpha_t = self.alpha * target + (1 - self.alpha) * (1 - target)
-        
+
         focal_weight = alpha_t * (1 - pt) ** self.gamma
+
+        # Binary Cross Entropy Loss
         bce_loss = F.binary_cross_entropy_with_logits(pred, target, reduction='none')
-        
+
+        # Final focal loss
         focal_loss = focal_weight * bce_loss
-        
+
         if self.reduction == 'mean':
             return focal_loss.mean()
         elif self.reduction == 'sum':
             return focal_loss.sum()
         else:
             return focal_loss
+
 
 class CombinedLoss(nn.Module):
     """

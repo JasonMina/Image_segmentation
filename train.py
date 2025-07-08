@@ -41,7 +41,7 @@ def train_model(config):
     # Loss and optimizer
     criterion = create_loss_function(config)
     optimizer = optim.AdamW(model.parameters(), lr=config.learning_rate, weight_decay=config.weight_decay)
-    scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='min', patience=5, factor=0.5)
+    scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='min', patience=4, factor=0.5, threshold=0.02)
     
     # TensorBoard setup
     os.makedirs(config.log_dir, exist_ok=True)
@@ -62,7 +62,7 @@ def train_model(config):
         # Training phase
         model.train()
         train_losses = []
-        train_metrics = {'iou': [], 'dice': [], 'accuracy': []}
+        train_metrics = {'iou': [], 'dice': [], 'accuracy': [], 'precision': [], 'recall': []}
         
         pbar = tqdm(train_loader, desc=f"Epoch {epoch+1}/{config.epochs}")
         for batch_idx, (images, masks) in enumerate(pbar):
@@ -115,7 +115,7 @@ def train_model(config):
         # Validation phase
         model.eval()
         val_losses = []
-        val_metrics = {'iou': [], 'dice': [], 'accuracy': []}
+        val_metrics = {'iou': [], 'dice': [], 'accuracy': [], 'precision': [], 'recall': []}
         
         with torch.no_grad():
             for images, masks in tqdm(val_loader, desc="Validation"):
@@ -214,9 +214,9 @@ def log_predictions(writer, model, val_loader, device, epoch, config):
         
         # Ground truth mask (convert to 3-channel for visualization)
         gt_mask = masks[i].unsqueeze(0).repeat(3, 1, 1)
-        
+        print(predictions[i].shape)
         # Prediction mask (convert to 3-channel)
-        pred_mask = predictions[i].float().unsqueeze(0).repeat(3, 1, 1)
+        pred_mask = predictions[i].float().repeat(3, 1, 1)
         
         # Create comparison grid
         comparison = torch.cat([img, gt_mask, pred_mask], dim=2)  # Concatenate horizontally
@@ -245,7 +245,7 @@ def load_checkpoint(filepath, model, optimizer=None):
     WHY: Essential for model deployment and continuing interrupted training
     HOW: Loads state dicts into model and optimizer, returns epoch and metric info
     """
-    checkpoint = torch.load(filepath, map_location='cpu')
+    checkpoint = torch.load(filepath, map_location='cpu', weights_only=False)
     model.load_state_dict(checkpoint['model_state_dict'])
     
     if optimizer is not None:
@@ -264,4 +264,4 @@ if __name__ == "__main__":
     config = Config.from_args()
     
     # Train model
-    trained_model = train_model(config)""
+    trained_model = train_model(config)
